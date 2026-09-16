@@ -14,7 +14,7 @@ const toDial = (s) => s.replace(/[^\d+*#]/g, '');
 
 // The call clock is owned by App — this component unmounts on every tab switch, and
 // timing it from here restarted the count each time.
-export default function Dialer({ onCall, activeCall, onHangup, status, startedAt, elapsed }) {
+export default function Dialer({ onCall, activeCall, onHangup, status, startedAt, elapsed, line }) {
   const [num, setNum] = useState('');
   const inputRef = useRef(null);
 
@@ -62,9 +62,18 @@ export default function Dialer({ onCall, activeCall, onHangup, status, startedAt
           <button className="btn-hangup" onClick={onHangup}>End call</button>
         </>
       ) : (
-        <button className="btn-call" onClick={call} disabled={status !== 'ready' || !toDial(num)}>
-          <IconPhone /> Call
-        </button>
+        <>
+          {/* The number the person you're calling will see — worth saying outright once
+              there's more than one to pick from. */}
+          {line && (
+            <div className="dial-from">
+              Caller ID <strong>{line.label}</strong> <span>{line.number}</span>
+            </div>
+          )}
+          <button className="btn-call" onClick={call} disabled={status !== 'ready' || !line || !toDial(num)}>
+            <IconPhone /> Call
+          </button>
+        </>
       )}
     </>
   );

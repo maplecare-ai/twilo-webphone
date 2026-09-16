@@ -1279,6 +1279,429 @@ body {
   }
 }
 
+/* ── Line switcher (sidebar) ── */
+.line-switch {
+  position: relative;
+  padding: 12px 12px 0;
+}
+.ls-current {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "cap chev"
+    "label chev"
+    "num chev";
+  align-items: center;
+  gap: 0 8px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--hair);
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-family: var(--sans);
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.ls-current:hover,
+.ls-current.open {
+  background: #fff;
+  border-color: rgba(217, 95, 14, 0.35);
+}
+.ls-cap {
+  grid-area: cap;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.ls-label {
+  grid-area: label;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ls-num {
+  grid-area: num;
+  font-size: 11px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ls-chev {
+  grid-area: chev;
+  color: var(--muted);
+  flex: none;
+}
+.ls-current.open .ls-chev {
+  transform: rotate(180deg);
+}
+
+.ls-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 12px;
+  right: 12px;
+  z-index: 60;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.ls-opt {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  font-family: var(--sans);
+  text-align: left;
+}
+.ls-opt:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.ls-opt.on {
+  background: rgba(217, 95, 14, 0.08);
+}
+.ls-opt-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.ls-opt-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ls-opt-num {
+  font-size: 11px;
+  color: var(--text-2);
+}
+.ls-tick {
+  color: var(--flame);
+  flex: none;
+}
+.ls-manage {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 9px 10px;
+  border: none;
+  border-top: 1px solid var(--hair);
+  border-radius: 0 0 8px 8px;
+  background: none;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.ls-manage:hover {
+  color: var(--flame);
+}
+.ls-manage svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ── Manage-lines dialog ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(249, 248, 246, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: fadeIn 0.2s ease;
+}
+.modal {
+  width: min(560px, 100%);
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.14);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.modal-head h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.modal-x {
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  color: var(--text-2);
+}
+.modal-x:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.ml-list {
+  display: flex;
+  flex-direction: column;
+}
+.ml-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hair);
+}
+.ml-label {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ml-label:hover:not(:disabled) {
+  border-color: var(--hair);
+  background: rgba(255, 255, 255, 0.7);
+}
+.ml-label:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--flame);
+  box-shadow: 0 0 0 3px rgba(217, 95, 14, 0.12);
+}
+.ml-num {
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.ml-icon {
+  display: flex;
+  padding: 7px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  color: var(--text-2);
+  flex: none;
+}
+.ml-icon:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.05);
+}
+.ml-icon.danger:hover:not(:disabled) {
+  background: rgba(212, 24, 61, 0.1);
+  color: var(--destructive);
+}
+.ml-icon:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.ml-confirm {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.ml-btn {
+  padding: 7px 13px;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  flex: none;
+}
+.ml-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: #fff;
+}
+.ml-btn.danger {
+  border-color: rgba(212, 24, 61, 0.3);
+  color: var(--destructive);
+}
+.ml-btn.danger:hover:not(:disabled) {
+  background: var(--destructive);
+  border-color: var(--destructive);
+  color: #fff;
+}
+
+.ml-add {
+  padding-top: 16px;
+}
+.ml-add-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ml-in {
+  flex: 1;
+  min-width: 150px;
+  padding: 10px 12px;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--text);
+}
+.ml-in::placeholder {
+  color: var(--subtle);
+}
+.ml-in:focus {
+  outline: none;
+  border-color: var(--flame);
+  box-shadow: 0 0 0 3px rgba(217, 95, 14, 0.12);
+}
+.btn-call.ml-send {
+  width: auto;
+  flex: none;
+  padding: 10px 20px;
+  font-size: 14px;
+}
+.ml-hint,
+.ml-err {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.ml-hint {
+  color: var(--text-2);
+}
+.ml-err {
+  color: var(--destructive);
+  font-weight: 600;
+}
+
+.ml-owned {
+  margin-top: 16px;
+}
+.ml-owned-cap {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.ml-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ml-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--text-2);
+}
+.ml-chip:hover {
+  border-color: var(--flame);
+  color: var(--flame);
+  background: #fff;
+}
+.ml-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hair);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.ml-foot svg {
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+  color: var(--success);
+  flex: none;
+}
+
+/* ── Line context in the panes ── */
+.pane-scope {
+  margin: 0 auto 0 10px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.c-from {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.c-from strong {
+  color: var(--text);
+}
+.c-from span {
+  color: var(--muted);
+}
+.dial-from {
+  margin-bottom: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.dial-from strong {
+  color: var(--text);
+}
+.dial-from span {
+  color: var(--muted);
+}
+/* Tightens the gap under the caller's number so the line it rang sits with it.
+   Without :has support the two just sit further apart — still legible. */
+.ring-from:has(+ .ring-line) {
+  margin-bottom: 6px;
+}
+.ring-line {
+  margin-bottom: 26px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
 /* ── Narrow screens ── */
 @media (max-width: 720px) {
   :root {
@@ -1289,8 +1712,31 @@ body {
   .sb-item span:not(.count),
   .sb-action span,
   .sb-status .s-label,
-  .sb-status .s-num {
+  .sb-status .s-num,
+  .ls-cap,
+  .ls-num,
+  .ls-chev {
     display: none;
+  }
+  /* 64px of rail can't hold "Line / Support / +1…", so keep just the name and
+     let the menu break out to a readable width. */
+  .line-switch {
+    padding: 10px 8px 0;
+  }
+  .ls-current {
+    grid-template-columns: 1fr;
+    grid-template-areas: "label";
+    justify-items: center;
+    padding: 9px 6px;
+  }
+  .ls-label {
+    font-size: 11px;
+    max-width: 100%;
+  }
+  .ls-menu {
+    left: 8px;
+    right: auto;
+    width: 240px;
   }
   /* Collapsed rail: keep the clock, drop the words. */
   .callbar {

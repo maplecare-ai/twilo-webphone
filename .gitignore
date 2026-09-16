@@ -3,6 +3,7 @@ web/node_modules
 web/dist
 .env
 server/sms-store.json
+server/lines-store.json
 *.log
 .DS_Store
 .vercel

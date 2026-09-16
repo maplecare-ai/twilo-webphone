@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { usePaged } from '../usePaged';
 import Pager from './Pager.jsx';
@@ -10,8 +10,11 @@ const isOutbound = (d) => (d || '').startsWith('outbound');
 const toE164 = (s) => s.replace(/[^\d+]/g, '');
 const valid = (s) => /^\+[1-9]\d{6,14}$/.test(toE164(s));
 
-export default function SmsInbox() {
-  const feed = usePaged(api.sms);
+export default function SmsInbox({ line }) {
+  // Memoised on the number: usePaged refetches whenever this identity changes, so an
+  // inline arrow here would loop.
+  const fetchSms = useCallback((opts) => api.sms({ ...opts, line: line?.number }), [line?.number]);
+  const feed = usePaged(fetchSms, { resetKey: line?.number });
   const [to, setTo] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -23,13 +26,20 @@ export default function SmsInbox() {
   // the reader off the page they're reading. Inbound messages arrive over SSE, so the
   // interval is just a fallback for a dropped stream rather than the main mechanism.
   const onFirstPage = !feed.hasPrev;
+  const active = line?.number;
   useEffect(() => {
     if (!onFirstPage) return undefined;
     const id = setInterval(feed.reload, 60000);
     const stream = new EventSource('/events');
-    stream.addEventListener('sms', () => feed.reload());
+    // The stream carries every line's inbound messages; a message for another line isn't
+    // in this view, so reloading for it would just be a wasted round trip.
+    stream.addEventListener('sms', (e) => {
+      let to;
+      try { ({ to } = JSON.parse(e.data)); } catch { /* malformed frame — just reload */ }
+      if (!active || !to || to === active) feed.reload();
+    });
     return () => { clearInterval(id); stream.close(); };
-  }, [onFirstPage]);
+  }, [onFirstPage, active]);
 
   const send = async (e) => {
     e.preventDefault();
@@ -37,7 +47,7 @@ export default function SmsInbox() {
     setSending(true);
     setSendError(null);
     try {
-      await api.sendSms(toE164(to), body.trim());
+      await api.sendSms(toE164(to), body.trim(), line?.number);
       setBody('');
       setSent(true);
       setTimeout(() => setSent(false), 2500);
@@ -58,6 +68,11 @@ export default function SmsInbox() {
   return (
     <div className="pane">
       <form className="card composer" onSubmit={send}>
+        {line && (
+          <div className="c-from">
+            From <strong>{line.label}</strong> <span>{line.number}</span>
+          </div>
+        )}
         <input
           className="c-to"
           value={to}
@@ -91,13 +106,17 @@ export default function SmsInbox() {
 
       <div className="pane-head">
         <h2>Messages</h2>
+        {line && <span className="pane-scope">{line.label} · {line.number}</span>}
         <button className="chip-btn" onClick={feed.reload} disabled={feed.loading}>Refresh</button>
       </div>
 
       {feed.error && <div className="error">{feed.error}</div>}
       {feed.loading && feed.items.length === 0 && <div className="empty">Loading…</div>}
       {!feed.loading && feed.items.length === 0 && !feed.error && (
-        <div className="empty">No messages yet.<br />Send one above, or text your number to see it land here.</div>
+        <div className="empty">
+          No messages on {line ? line.label : 'this line'} yet.<br />
+          Send one above, or text {line ? line.number : 'your number'} to see it land here.
+        </div>
       )}
 
       <div className="feed">

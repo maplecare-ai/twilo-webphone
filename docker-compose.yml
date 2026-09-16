@@ -1,0 +1,29 @@
+# Postgres for the phone-line list (see server/db.js). Everything else the app shows —
+# calls, recordings, messages — is read from Twilio, so this is the only state to keep.
+#
+#   docker compose up -d
+#   echo 'DATABASE_URL=postgres://webphone:webphone@localhost:5432/webphone' >> .env
+#   npm run dev
+#
+# Without DATABASE_URL the server falls back to server/lines-store.json, which is fine
+# locally but is lost on every container restart — so set it in any deployed environment.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: webphone
+      POSTGRES_PASSWORD: webphone
+      POSTGRES_DB: webphone
+    ports:
+      - "5432:5432"
+    volumes:
+      - webphone-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webphone -d webphone"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  webphone-db:

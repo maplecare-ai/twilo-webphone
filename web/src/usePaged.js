@@ -6,8 +6,12 @@ export const PAGE_SIZE = 10;
 // Twilio's own API is cursor-based and reports no total, so the server keeps a cached
 // window of history and pages out of it — that's what lets the picker list every page up
 // front instead of revealing them one step at a time.
-export function usePaged(fetchPage, pageSize = PAGE_SIZE) {
+//
+// `resetKey` is whatever the feed is scoped by — the active line. When it changes the
+// page snaps back to 1, because page 7 of the old line means nothing on the new one.
+export function usePaged(fetchPage, { pageSize = PAGE_SIZE, resetKey } = {}) {
   const [page, setPage] = useState(1);
+  const [scope, setScope] = useState(resetKey);
   const [nonce, setNonce] = useState(0);
   const [items, setItems] = useState([]);
   const [pageCount, setPageCount] = useState(1);
@@ -16,6 +20,13 @@ export function usePaged(fetchPage, pageSize = PAGE_SIZE) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const fresh = useRef(false); // set by reload()/reset() — bypasses the server's cache
+
+  // Adjusted during render rather than in an effect: by the time the fetch below runs,
+  // the page is already 1, so switching line costs one request instead of two.
+  if (scope !== resetKey) {
+    setScope(resetKey);
+    setPage(1);
+  }
 
   const run = useCallback(() => {
     let stale = false;

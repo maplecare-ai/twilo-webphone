@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, recordingMedia } from '../api';
 import { usePaged } from '../usePaged';
 import Pager from './Pager.jsx';
@@ -19,8 +19,11 @@ const readVolume = () => {
   }
 };
 
-export default function CallHistory() {
-  const feed = usePaged(api.calls);
+export default function CallHistory({ line }) {
+  // Memoised on the number: usePaged refetches whenever this identity changes, so an
+  // inline arrow here would loop.
+  const fetchCalls = useCallback((opts) => api.calls({ ...opts, line: line?.number }), [line?.number]);
+  const feed = usePaged(fetchCalls, { resetKey: line?.number });
   const [loaded, setLoaded] = useState(null);   // sid of the row whose audio is in the element
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
@@ -77,11 +80,14 @@ export default function CallHistory() {
     <div className="pane">
       <div className="pane-head">
         <h2>Calls</h2>
+        {line && <span className="pane-scope">{line.label} · {line.number}</span>}
         <button className="chip-btn" onClick={feed.reload} disabled={feed.loading}>Refresh</button>
       </div>
       {feed.error && <div className="error">{feed.error}</div>}
       {feed.loading && feed.items.length === 0 && <div className="empty">Loading…</div>}
-      {!feed.loading && feed.items.length === 0 && !feed.error && <div className="empty">No calls yet.</div>}
+      {!feed.loading && feed.items.length === 0 && !feed.error && (
+        <div className="empty">No calls on {line ? line.label : 'this line'} yet.</div>
+      )}
       <div className="feed">
         {feed.items.map((c) => {
           const inbound = isInbound(c.direction);

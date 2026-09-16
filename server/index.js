@@ -15,6 +15,7 @@ const {
   TWILIO_API_KEY_SECRET,
 } = require('./twilio');
 const store = require('./store');
+const lines = require('./lines');
 const events = require('./events');
 
 const {
@@ -64,7 +65,71 @@ app.post('/api/login', (req, res) => {
   res.status(401).json({ error: 'invalid credentials' });
 });
 app.post('/api/logout', (req, res) => { res.clearCookie('session'); res.json({ ok: true }); });
-app.get('/api/me', requireAuth, (_req, res) => res.json({ identity: TWILIO_IDENTITY, number: TWILIO_NUMBER }));
+app.get('/api/me', requireAuth, async (_req, res) => {
+  const rows = await lines.listSafe();
+  res.json({
+    identity: TWILIO_IDENTITY,
+    number: (rows[0] && rows[0].number) || TWILIO_NUMBER,
+    lines: rows,
+  });
+});
+
+// ── Phone lines ──
+// Every number this phone can call and text from. The switcher reads this list; the
+// manage dialog writes to it.
+const lineFailed = (res, e, what) => {
+  if (e instanceof lines.LineError) return res.status(e.status).json({ error: e.message });
+  console.error(`${what} error`, e);
+  res.status(500).json({ error: `could not ${what}` });
+};
+
+app.get('/api/lines', requireAuth, async (_req, res) => {
+  res.json({ lines: await lines.listSafe() });
+});
+
+app.post('/api/lines', requireAuth, async (req, res) => {
+  try {
+    res.status(201).json(await lines.add(req.body || {}));
+  } catch (e) {
+    lineFailed(res, e, 'add the line');
+  }
+});
+
+app.patch('/api/lines/:id', requireAuth, async (req, res) => {
+  try {
+    res.json(await lines.update(req.params.id, req.body || {}));
+  } catch (e) {
+    lineFailed(res, e, 'update the line');
+  }
+});
+
+app.delete('/api/lines/:id', requireAuth, async (req, res) => {
+  try {
+    await lines.remove(req.params.id);
+    res.status(204).end();
+  } catch (e) {
+    lineFailed(res, e, 'remove the line');
+  }
+});
+
+// The numbers actually on the Twilio account, so adding a line is a click rather than a
+// transcription. A convenience only — any number can still be typed in by hand.
+app.get('/api/twilio-numbers', requireAuth, async (_req, res) => {
+  try {
+    const owned = await restClient.incomingPhoneNumbers.list({ limit: 100 });
+    res.json({
+      numbers: owned.map((n) => ({
+        number: n.phoneNumber,
+        label: n.friendlyName && n.friendlyName !== n.phoneNumber ? n.friendlyName : '',
+        voice: Boolean(n.capabilities && n.capabilities.voice),
+        sms: Boolean(n.capabilities && n.capabilities.sms),
+      })),
+    });
+  } catch (e) {
+    console.error('incoming numbers error', e);
+    res.status(502).json({ error: 'could not list the numbers on this Twilio account' });
+  }
+});
 
 // Voice access token for the browser SDK.
 app.get('/api/token', requireAuth, (_req, res) => {
@@ -87,12 +152,15 @@ function validateTwilio(req, res, next) {
 }
 
 // Outbound: the TwiML App's Voice URL. device.connect({params:{To}}) lands here.
-app.post('/voice/outgoing', validateTwilio, (req, res) => {
+app.post('/voice/outgoing', validateTwilio, async (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
   const to = (req.body.To || '').trim();
   if (to) {
-    twiml.dial({ callerId: TWILIO_NUMBER, ...recordOpts }).number(to);
+    // The browser sends the line it is calling from. A number we don't own falls back to
+    // the default line rather than being honoured — see lines.callerId.
+    const callerId = lines.callerId(req.body.From, await lines.listSafe());
+    twiml.dial({ callerId, ...recordOpts }).number(to);
   } else {
     twiml.say('No destination number was provided.');
   }
@@ -100,11 +168,20 @@ app.post('/voice/outgoing', validateTwilio, (req, res) => {
 });
 
 // Inbound: the phone number's Voice URL. Ring the browser; fall back if nobody's registered.
-app.post('/voice/incoming', validateTwilio, (_req, res) => {
+app.post('/voice/incoming', validateTwilio, async (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
   const dial = twiml.dial({ timeout: 20, ...recordOpts });
-  dial.client(TWILIO_IDENTITY);
+  // Every line rings this one browser client, so the call carries the line it came in on.
+  // The incoming-call card reads these back off call.customParameters — without them a
+  // second number would ring with nothing to say which of them was dialled.
+  const line = lines.match(req.body.To, await lines.listSafe());
+  const client = dial.client();
+  client.identity(TWILIO_IDENTITY);
+  if (line) {
+    client.parameter({ name: 'Line', value: line.number });
+    client.parameter({ name: 'LineLabel', value: line.label });
+  }
   twiml.say('Sorry, no one is available to take your call. Goodbye.');
   res.type('text/xml').send(twiml.toString());
 });
@@ -176,6 +253,14 @@ function slicePage(records, pageParam, pageSize) {
 }
 
 const E164 = /^\+[1-9]\d{6,14}$/;
+
+// History is scoped to the line the switcher is on: a record belongs to a line when that
+// number is either end of it. No line (or a malformed one) shows the whole account.
+function forLine(records, requested) {
+  const number = String(requested || '').replace(/[\s()\-.]/g, '');
+  if (!E164.test(number)) return records;
+  return records.filter((r) => r.from === number || r.to === number);
+}
 const SMS_MAX_CHARS = 1600; // Twilio splits anything longer than one segment; this is its hard cap.
 
 const toSms = (m) => ({
@@ -194,7 +279,8 @@ app.get('/api/sms', requireAuth, async (req, res) => {
   try {
     if (req.query.fresh) windows.delete('sms');
     const win = await fetchWindow('sms', restClient.messages, toSms);
-    res.json({ ...slicePage(win.records, req.query.page, pageSizeOf(req.query.pageSize)), exact: win.exact });
+    const records = forLine(win.records, req.query.line);
+    res.json({ ...slicePage(records, req.query.page, pageSizeOf(req.query.pageSize)), exact: win.exact });
   } catch (e) {
     console.error('sms error', e);
     res.status(500).json({ error: 'could not load messages' });
@@ -210,9 +296,10 @@ app.post('/api/sms', requireAuth, async (req, res) => {
   if (!E164.test(to)) return res.status(400).json({ error: 'Enter the number in E.164 form, e.g. +14155550123' });
   if (!body) return res.status(400).json({ error: 'Write a message first.' });
   if (body.length > SMS_MAX_CHARS) return res.status(400).json({ error: `Message is too long (max ${SMS_MAX_CHARS} characters).` });
-  if (!TWILIO_NUMBER) return res.status(500).json({ error: 'TWILIO_NUMBER is not configured.' });
+  const from = lines.callerId(req.body && req.body.from, await lines.listSafe());
+  if (!from) return res.status(500).json({ error: 'No line is configured to send from — add one first.' });
   try {
-    const message = await restClient.messages.create({ to, from: TWILIO_NUMBER, body });
+    const message = await restClient.messages.create({ to, from, body });
     const entry = toSms(message);
     windows.delete('sms'); // the window is now a message short
     events.broadcast('sms', entry);
@@ -265,7 +352,8 @@ app.get('/api/calls', requireAuth, async (req, res) => {
   try {
     if (req.query.fresh) windows.delete('calls');
     const win = await fetchWindow('calls', restClient.calls, toCall, (c) => !isClientLeg(c));
-    const { items, page, pageCount, total } = slicePage(win.records, req.query.page, pageSizeOf(req.query.pageSize));
+    const records = forLine(win.records, req.query.line);
+    const { items, page, pageCount, total } = slicePage(records, req.query.page, pageSizeOf(req.query.pageSize));
     // Recordings are a bonus on this view — never fail the history over them. Looked up
     // for the ten rows being served, not the whole window.
     const recs = await recordingsForCalls(items).catch(() => new Map());
@@ -333,8 +421,12 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(dist, 'index.html'), (err) => { if (err) next(); });
 });
 
+// Creates the table (or the file), seeds the first line from TWILIO_NUMBER / TWILIO_NUMBERS
+// on a fresh store, and primes the cache the voice webhooks fall back to.
+const ready = lines.init().catch((e) => console.error('line store init failed —', e.message));
+
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`Web Phone server → http://localhost:${PORT}`));
+  ready.then(() => app.listen(PORT, () => console.log(`Web Phone server → http://localhost:${PORT}`)));
 }
 
 module.exports = app;
