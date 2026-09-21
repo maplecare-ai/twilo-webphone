@@ -19,9 +19,18 @@ The phone can hold several Twilio numbers. The switcher at the top of the sideba
 - the sender on texts you send,
 - and the number both history views are scoped to.
 
-Inbound calls ring the browser **whichever line they come in on** — switching never costs you a call — and the
-incoming-call card names the line that was dialled. Add, rename and remove lines from *Manage lines* in the switcher;
-the add form also lists the numbers already on your Twilio account, so most of the time it's a click.
+**Inbound calls only ring the line you are on.** The browser registers with Twilio under a per-line client identity
+(`webphone-15105550123`), and `/voice/incoming` rings the identity belonging to the number that was dialled — so a
+call to Support reaches whoever is sitting on Support, and nobody else. The incoming-call card still names the line.
+Two consequences worth knowing:
+
+- A call to a line **nobody is on** goes unanswered and the caller hears the fallback message. Someone has to be
+  switched to that line to receive it.
+- Switching lines re-registers the device, which would drop a call in progress, so the switcher is locked while
+  you're on a call.
+
+Add, rename and remove lines from *Manage lines* in the switcher; the add form also lists the numbers already on
+your Twilio account, so most of the time it's a click.
 
 Each number needs its own webhooks pointed here (Phone Numbers → the number, in the Twilio Console), exactly like
 the first one:

@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { IconChevron, IconCheck, IconLines } from './icons.jsx';
 
 // Sidebar control for the number the phone is currently acting as: it sets the caller ID
-// on outbound calls, the sender on texts, and scopes both history views. Inbound calls
-// ring here whichever line they came in on, so switching never costs you a call.
-export default function LineSwitcher({ lines, active, onSwitch, onManage }) {
+// on outbound calls, the sender on texts, scopes both history views, and decides which
+// line's incoming calls ring here — the browser registers under that line's identity, so
+// calls to the other lines go to whoever is on them, not to you.
+// `busy` locks it during a call: switching re-registers the device, which would drop it.
+export default function LineSwitcher({ lines, active, onSwitch, onManage, busy }) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
 

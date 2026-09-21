@@ -28,7 +28,7 @@ export const api = {
   login: (email, password) => req('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => req('/api/logout', { method: 'POST' }),
   me: () => req('/api/me'),
-  token: () => req('/api/token'),
+  token: (line) => req(line ? `/api/token?line=${encodeURIComponent(line)}` : '/api/token'),
   sms: (opts) => paged('/api/sms', opts),
   sendSms: (to, body, from) => req('/api/sms', { method: 'POST', body: JSON.stringify({ to, body, from }) }),
   calls: (opts) => paged('/api/calls', opts),

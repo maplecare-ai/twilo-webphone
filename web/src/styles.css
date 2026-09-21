@@ -1305,10 +1305,15 @@ body {
     border-color 0.15s,
     background 0.15s;
 }
-.ls-current:hover,
+.ls-current:hover:not(:disabled),
 .ls-current.open {
   background: #fff;
   border-color: rgba(217, 95, 14, 0.35);
+}
+/* Locked during a call — switching re-registers the device and would drop it. */
+.ls-current:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 .ls-cap {
   grid-area: cap;

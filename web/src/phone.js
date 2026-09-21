@@ -29,10 +29,12 @@ export function describeError(e) {
 }
 
 // Wrap the Twilio Voice Device: fetch a token, register, and surface events.
-export async function createDevice({ onStatus, onIncoming }) {
+// `line` decides which identity the browser registers as, and so which number's calls
+// reach it — a device registered for one line is never rung by another.
+export async function createDevice({ line, onStatus, onIncoming }) {
   let token;
   try {
-    ({ token } = await api.token());
+    ({ token } = await api.token(line));
   } catch (e) {
     // The server refused to mint a token — that's a config or session problem, not a
     // WebRTC one, so say which rather than letting it look like a device failure.
@@ -48,7 +50,7 @@ export async function createDevice({ onStatus, onIncoming }) {
   // Tokens expire (~1h) — refresh so the device stays registered.
   device.on('tokenWillExpire', async () => {
     try {
-      const { token: fresh } = await api.token();
+      const { token: fresh } = await api.token(line);
       device.updateToken(fresh);
     } catch (e) {
       console.error('token refresh failed', e);

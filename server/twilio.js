@@ -23,25 +23,35 @@ const restClient = useAuthToken
   : twilio(TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET, { accountSid: TWILIO_ACCOUNT_SID });
 if (useAuthToken) console.warn('TWILIO_REST_AUTH=token — REST calls use the auth token; voice still needs a valid API key.');
 
+// One client identity per line. Inbound calls are routed by identity, so a browser
+// registered as webphone-15105550123 can only be rung by the number it belongs to —
+// that is what stops a call to one line ringing everyone sitting on the others.
+// Twilio identities allow [A-Za-z0-9_.-] only, so the "+" of E.164 is dropped.
+function identityFor(number) {
+  const digits = String(number == null ? '' : number).replace(/\D/g, '');
+  return digits ? `${TWILIO_IDENTITY}-${digits}` : TWILIO_IDENTITY;
+}
+
 // Mint a short-lived Voice access token the browser SDK registers with.
-function mintToken() {
+function mintToken(identity = TWILIO_IDENTITY) {
   const { AccessToken } = twilio.jwt;
   const { VoiceGrant } = AccessToken;
   const token = new AccessToken(TWILIO_ACCOUNT_SID, TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET, {
-    identity: TWILIO_IDENTITY,
+    identity,
     ttl: 3600,
   });
   token.addGrant(new VoiceGrant({
     outgoingApplicationSid: TWILIO_TWIML_APP_SID, // outbound: hits our /voice/outgoing
     incomingAllow: true,                          // inbound: allow <Client> to ring here
   }));
-  return { token: token.toJwt(), identity: TWILIO_IDENTITY };
+  return { token: token.toJwt(), identity };
 }
 
 module.exports = {
   twilio,
   restClient,
   mintToken,
+  identityFor,
   TWILIO_NUMBER,
   TWILIO_IDENTITY,
   TWILIO_ACCOUNT_SID,

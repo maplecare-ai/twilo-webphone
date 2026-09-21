@@ -8,6 +8,7 @@ const {
   twilio,
   restClient,
   mintToken,
+  identityFor,
   TWILIO_NUMBER,
   TWILIO_IDENTITY,
   TWILIO_ACCOUNT_SID,
@@ -132,9 +133,12 @@ app.get('/api/twilio-numbers', requireAuth, async (_req, res) => {
 });
 
 // Voice access token for the browser SDK.
-app.get('/api/token', requireAuth, (_req, res) => {
+// The token carries the identity for one line, so the browser only registers to receive
+// that line's calls. Switching lines in the UI mints a fresh token and re-registers.
+app.get('/api/token', requireAuth, async (req, res) => {
   try {
-    res.json(mintToken());
+    const number = lines.callerId(req.query.line, await lines.listSafe());
+    res.json(mintToken(identityFor(number)));
   } catch (e) {
     console.error('token error', e);
     res.status(500).json({ error: 'token error — check Twilio env vars' });
@@ -172,12 +176,12 @@ app.post('/voice/incoming', validateTwilio, async (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
   const dial = twiml.dial({ timeout: 20, ...recordOpts });
-  // Every line rings this one browser client, so the call carries the line it came in on.
-  // The incoming-call card reads these back off call.customParameters — without them a
-  // second number would ring with nothing to say which of them was dialled.
+  // Ring only the browsers registered for the number that was actually dialled. The
+  // identity comes from To rather than from the store, so routing stays correct even if
+  // the line list is briefly unreadable.
   const line = lines.match(req.body.To, await lines.listSafe());
   const client = dial.client();
-  client.identity(TWILIO_IDENTITY);
+  client.identity(identityFor(req.body.To));
   if (line) {
     client.parameter({ name: 'Line', value: line.number });
     client.parameter({ name: 'LineLabel', value: line.label });

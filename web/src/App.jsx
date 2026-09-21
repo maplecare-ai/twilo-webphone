@@ -102,12 +102,15 @@ export default function App() {
     [],
   );
 
+  // Re-registering is what makes the switch real: the device drops its old identity and
+  // comes back on the new line's, so calls to the line you left stop arriving here.
   useEffect(() => {
-    if (authed !== true) return;
+    if (authed !== true || !line) return;
     let device;
     setStatus("connecting");
     setStatusMsg(null);
     createDevice({
+      line: line.number,
       onStatus: (state, message) => {
         setStatus(state);
         setStatusMsg(message || null);
@@ -138,7 +141,7 @@ export default function App() {
         /* noop */
       }
     };
-  }, [authed, retry]);
+  }, [authed, retry, line?.number]);
 
   if (authed === null)
     return (
@@ -213,6 +216,7 @@ export default function App() {
             active={line}
             onSwitch={(l) => setActiveNumber(l.number)}
             onManage={() => setManaging(true)}
+            busy={Boolean(activeCall || incoming)}
           />
 
           <nav className="sb-nav">
