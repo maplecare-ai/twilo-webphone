@@ -135,9 +135,18 @@ app.get('/api/twilio-numbers', requireAuth, async (_req, res) => {
 // Voice access token for the browser SDK.
 // The token carries the identity for one line, so the browser only registers to receive
 // that line's calls. Switching lines in the UI mints a fresh token and re-registers.
+//
+// The identity comes from the requested number itself, not from a store lookup, so it
+// always agrees with what /voice/incoming will ring. Resolving through the store instead
+// would, on a store that has lost a line, quietly register the browser under the default
+// line and ring it for that line's calls — the exact cross-ringing this is meant to stop.
+// An identity for a number we don't own is harmless: no webhook ever routes a call to it.
 app.get('/api/token', requireAuth, async (req, res) => {
   try {
-    const number = lines.callerId(req.query.line, await lines.listSafe());
+    const requested = String(req.query.line || '').replace(/[\s()\-.]/g, '');
+    const number = lines.E164.test(requested)
+      ? requested
+      : lines.callerId(null, await lines.listSafe());
     res.json(mintToken(identityFor(number)));
   } catch (e) {
     console.error('token error', e);
